@@ -486,9 +486,10 @@ typedef union {
                 up       :1, //!< Timer supports upcounting
                 comp1    :1, //!< Timer supports compare interrupt 0
                 comp2    :1, //!< Timer supports compare interrupt 1
+                comp3    :1, //!< Timer supports compare interrupt 2
                 ext_clk  :1, //!< External clock supported
-                encoder  :1, //!< Encode mode supported
-                unused   :2;
+                encoder  :1, //!< Encoder mode supported
+                unused   :1;
     };
 } timer_cap_t;
 
@@ -497,12 +498,15 @@ typedef void (*timer_irq_handler_ptr)(void *context);
 typedef struct {
     void *context;                          //!< Pointer to data to be passed on to the interrupt handlers
     bool single_shot;                       //!< Set to true if timer is single shot
+    bool encoder_mode;                      //!< Set to true if timer is in encoder mode
     uint32_t period;                        //!< Current value for period register
     timer_irq_handler_ptr timeout_callback; //!< Pointer to main timeout callback
     uint32_t irq0;                          //!< Compare value for compare interrupt 0
     timer_irq_handler_ptr irq0_callback;    //!< Pointer to compare interrupt 0 callback
-    uint32_t irq1;                          //!< Compare value for compare interrupt 10
+    uint32_t irq1;                          //!< Compare value for compare interrupt 1
     timer_irq_handler_ptr irq1_callback;    //!< Pointer to compare interrupt 1 callback
+    uint32_t irq2;                          //!< Compare value for compare interrupt 2
+    timer_irq_handler_ptr irq2_callback;    //!< Pointer to compare interrupt 1 callback
 } timer_cfg_t;
 
 /*! \brief Pointer to function for claiming a timer.

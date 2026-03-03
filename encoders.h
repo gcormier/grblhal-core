@@ -79,11 +79,12 @@ typedef void (*encoder_on_event_ptr)(encoder_t *encoder, encoder_event_t *events
 typedef void (*encoder_reset_ptr)(encoder_t *encoder);
 
 /*! \brief Pointer to function for claiming an encoder.
+\param encoder pointer to a \a encoder_t struct.
 \param event_handler pointer to to the event handler callback.
 \param context pointer to the context to be passed to event handler.
 \returns \a true when claim was successful, \a false to otherwise.
 */
-typedef bool (*encoder_claim_ptr)(encoder_on_event_ptr event_handler, void *context);
+typedef bool (*encoder_claim_ptr)(encoder_t *encoder, encoder_on_event_ptr event_handler, void *context);
 
 /*! \brief Pointer to function for getting encoder data.
 \param encoder pointer to a \a encoder_t struct.
@@ -109,6 +110,7 @@ bool encoders_enumerate (encoder_enumerate_callback_ptr callback, void *data);
 uint8_t encoders_get_count (void);
 
 struct encoder {
+    void *hw;
     encoder_caps_t caps;
     encoder_claim_ptr claim;
     encoder_reset_ptr reset;
@@ -118,7 +120,7 @@ struct encoder {
 
 #endif // _ENCODERS_H_
 
-// Quadrature Encoder Interface - static code for drivers/plugins
+// Interrupt driven Quadrature Encoder Interface - static code for driver/plugin use
 
 #if QEI_ENABLE && defined(QEI_A_PIN) && defined(QEI_B_PIN)
 
@@ -150,9 +152,9 @@ typedef struct {
     uint32_t vel_timestamp;
     encoder_on_event_ptr on_event;
     encoder_cfg_t settings;
-} qei_t;
+} iqei_t;
 
-static qei_t qei = {
+static iqei_t iqei = {
     .port_a = IOPORT_UNASSIGNED,
     .port_b = IOPORT_UNASSIGNED,
     .port_select = IOPORT_UNASSIGNED,
@@ -160,155 +162,172 @@ static qei_t qei = {
     .encoder.caps.bidirectional = On
 };
 
-static void qei_post_event (void *data)
+static void iqei_select_irq (uint8_t port, bool high);
+
+static void iqei_post_event (void *data)
 {
-    qei.on_event(&qei.encoder, &qei.event, qei.context);
+    iqei.event.events |= ((encoder_event_t *)data)->events;
+
+    iqei.on_event(&iqei.encoder, &iqei.event, iqei.context);
 }
 
-static void qei_dblclk_event (void *data)
+static void iqei_reset (encoder_t *encoder)
 {
-    qei.event.dbl_click = On;
-    qei.on_event(&qei.encoder, &qei.event, qei.context);
+    iqei.vel_timeout = 0;
+    iqei.dir = QEI_DirUnknown;
+    iqei.data.position = iqei.vel_count = 0;
+    iqei.vel_timestamp = hal.get_elapsed_ticks();
+    iqei.vel_timeout = iqei.settings.vel_timeout;
 }
 
-static void qei_reset (encoder_t *encoder)
+static bool iqei_configure (encoder_t *encoder, encoder_cfg_t *settings)
 {
-    qei.vel_timeout = 0;
-    qei.dir = QEI_DirUnknown;
-    qei.data.position = qei.vel_count = 0;
-    qei.vel_timestamp = hal.get_elapsed_ticks();
-    qei.vel_timeout = qei.settings.vel_timeout;
-}
+    if(iqei.vel_timeout != settings->vel_timeout)
+        iqei.vel_timestamp = hal.get_elapsed_ticks();
 
-static bool qei_configure (encoder_t *encoder, encoder_cfg_t *settings)
-{
-    if(qei.vel_timeout != settings->vel_timeout)
-        qei.vel_timestamp = hal.get_elapsed_ticks();
-
-    memcpy(&qei.settings, settings, sizeof(encoder_cfg_t));
+    memcpy(&iqei.settings, settings, sizeof(encoder_cfg_t));
 
     return true;
 }
 
-static encoder_data_t *qei_get_data (encoder_t *encoder)
+static encoder_data_t *iqei_get_data (encoder_t *encoder)
 {
-    return &qei.data;
+    return &iqei.data;
 }
 
-static void qei_poll (void *data)
+static void iqei_poll (void *data)
 {
-    if(qei.vel_timeout && !(--qei.vel_timeout)) {
+    if(iqei.vel_timeout && !(--iqei.vel_timeout)) {
 
         uint32_t time = hal.get_elapsed_ticks();
 
-        qei.data.velocity = abs(qei.data.position - qei.vel_count) * 1000 / (time - qei.vel_timestamp);
-        qei.vel_timestamp = time;
-        qei.vel_timeout = qei.settings.vel_timeout;
-        if((qei.event.position_changed = !qei.dbl_click_timeout || qei.data.velocity == 0))
-            qei.on_event(&qei.encoder, &qei.event, qei.context);
-        qei.vel_count = qei.data.position;
+        iqei.data.velocity = abs(iqei.data.position - iqei.vel_count) * 1000 / (time - iqei.vel_timestamp);
+        iqei.vel_timestamp = time;
+        iqei.vel_timeout = iqei.settings.vel_timeout;
+        if((iqei.event.position_changed = !iqei.dbl_click_timeout || iqei.data.velocity == 0))
+            iqei.on_event(&iqei.encoder, &iqei.event, iqei.context);
+        iqei.vel_count = iqei.data.position;
     }
 
-    if(qei.dbl_click_timeout && !(--qei.dbl_click_timeout)) {
-        qei.event.click = On;
-        task_delete(qei_dblclk_event, NULL);
-        qei.on_event(&qei.encoder, &qei.event, qei.context);
+    if(iqei.dbl_click_timeout && !(--iqei.dbl_click_timeout)) {
+        iqei.event.click = On;
+        iqei.on_event(&iqei.encoder, &iqei.event, iqei.context);
     }
 }
 
-static void qei_ab_irq (uint8_t port, bool high)
+static void iqei_ab_irq (uint8_t port, bool high)
 {
-    const uint8_t encoder_valid_state[] = {0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0};
+    PROGMEM static const uint8_t encoder_valid_state[] = {0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0};
+    PROGMEM static const encoder_event_t dir_changed = { .direction_changed = On, .position_changed = On };
 
     static qei_state_t state = {0};
 
-    if(port == qei.port_a)
+    if(port == iqei.port_a)
         state.a = high;
     else
         state.b = high;
 
-    uint_fast8_t idx = (((qei.state << 2) & 0x0F) | state.pins);
+    uint_fast8_t idx = (((iqei.state << 2) & 0x0F) | state.pins);
 
     if(encoder_valid_state[idx] ) {
 
-//        int32_t count = qei.count;
+//        int32_t count = iqei.count;
 
-        qei.state = ((qei.state << 4) | idx) & 0xFF;
+        iqei.state = ((iqei.state << 4) | idx) & 0xFF;
 
-        if(qei.state == 0x42 || qei.state == 0xD4 || qei.state == 0x2B || qei.state == 0xBD) {
-            qei.data.position--;
-            if(qei.vel_timeout == 0 || qei.dir == QEI_DirCW) {
-                qei.dir = QEI_DirCCW;
-                qei.event.position_changed = On;
-                task_add_immediate(qei_post_event, NULL);
+        if(iqei.state == 0x42 || iqei.state == 0xD4 || iqei.state == 0x2B || iqei.state == 0xBD) {
+            iqei.data.position--;
+            if(iqei.vel_timeout == 0 || iqei.dir == QEI_DirCW) {
+                iqei.dir = QEI_DirCCW;
+                task_add_immediate(iqei_post_event, &dir_changed);
             }
-        } else if(qei.state == 0x81 || qei.state == 0x17 || qei.state == 0xE8 || qei.state == 0x7E) {
-            qei.data.position++;
-            if(qei.vel_timeout == 0 || qei.dir == QEI_DirCCW) {
-                qei.dir = QEI_DirCW;
-                qei.event.position_changed = On;
-                task_add_immediate(qei_post_event, NULL);
+        } else if(iqei.state == 0x81 || iqei.state == 0x17 || iqei.state == 0xE8 || iqei.state == 0x7E) {
+            iqei.data.position++;
+            if(iqei.vel_timeout == 0 || iqei.dir == QEI_DirCCW) {
+                iqei.dir = QEI_DirCW;
+                task_add_immediate(iqei_post_event, &dir_changed);
             }
         }
     }
 }
 
-static void qei_select_irq (uint8_t port, bool high)
+static void iqei_select (void *data)
 {
-    if(high)
-        return;
+    static uint8_t clicks = 0;
 
-    if(!qei.dbl_click_timeout) {
-        qei.dbl_click_timeout = qei.settings.dbl_click_window;
-    } else if(qei.dbl_click_timeout < qei.settings.dbl_click_window) {
-        qei.dbl_click_timeout = 0;
-        task_delete(qei_dblclk_event, NULL);
-        task_add_immediate(qei_dblclk_event, NULL);
+    if(!iqei.dbl_click_timeout) {
+        clicks = 1;
+        iqei.dbl_click_timeout = iqei.settings.dbl_click_window;
+    } else if(iqei.dbl_click_timeout < iqei.settings.dbl_click_window && ++clicks == 2) {
+        iqei.dbl_click_timeout = 0;
+        iqei.event.dbl_click = On;
+        iqei.on_event(&iqei.encoder, &iqei.event, iqei.context);
     }
 }
 
-static bool qei_claim (encoder_on_event_ptr event_handler, void *context)
+static void iqei_select_irq (uint8_t port, bool high)
 {
-    if(event_handler == NULL || qei.on_event)
+    static bool lock = false;
+
+    if(high || lock)
+        return;
+
+//    lock = true;
+
+    task_add_immediate(iqei_select, NULL);
+
+//    lock = false;
+}
+
+static bool iqei_claim (encoder_t *encoder, encoder_on_event_ptr event_handler, void *context)
+{
+    if(event_handler == NULL || iqei.on_event)
         return false;
 
-    qei.context = context;
-    qei.on_event = event_handler;
-    qei.encoder.reset = qei_reset;
-    qei.encoder.get_data = qei_get_data;
-    qei.encoder.configure = qei_configure;
+    iqei.context = context;
+    iqei.on_event = event_handler;
+    iqei.encoder.reset = iqei_reset;
+    iqei.encoder.get_data = iqei_get_data;
+    iqei.encoder.configure = iqei_configure;
 
-    if(qei.port_b != IOPORT_UNASSIGNED) {
-        ioport_enable_irq(qei.port_a, IRQ_Mode_Change, qei_ab_irq);
-        ioport_enable_irq(qei.port_b, IRQ_Mode_Change, qei_ab_irq);
+    if(iqei.port_b != IOPORT_UNASSIGNED) {
+        ioport_enable_irq(iqei.port_a, IRQ_Mode_Change, iqei_ab_irq);
+        ioport_enable_irq(iqei.port_b, IRQ_Mode_Change, iqei_ab_irq);
     }
 
-    if(qei.port_select != IOPORT_UNASSIGNED)
-        ioport_enable_irq(qei.port_select, IRQ_Mode_Change, qei_select_irq);
+    if(iqei.port_select != IOPORT_UNASSIGNED)
+        ioport_enable_irq(iqei.port_select, IRQ_Mode_Change, iqei_select_irq);
 
-    task_add_systick(qei_poll, NULL);
+    task_add_systick(iqei_poll, NULL);
 
     return true;
 }
 
-static inline void encoder_pin_claimed (uint8_t port, xbar_t *pin)
+static inline void _encoder_pin_claimed (uint8_t port, xbar_t *pin)
 {
     switch(pin->function) {
 
         case Input_QEI_A:
-            qei.port_a = port;
+            iqei.port_a = port;
             break;
 
         case Input_QEI_B:
-            qei.port_b = port;
-            qei.encoder.claim = qei_claim;
-            if(qei.port_a != IOPORT_UNASSIGNED)
-                encoder_register(&qei.encoder);
+            iqei.port_b = port;
+            iqei.encoder.claim = iqei_claim;
+            if(iqei.port_a != IOPORT_UNASSIGNED)
+                encoder_register(&iqei.encoder);
             break;
 
         case Input_QEI_Select:
-            qei.port_select = port;
-            qei.encoder.caps.select = On;
+            iqei.port_select = port;
+            iqei.encoder.caps.select = On;
+            if(pin->config) {
+                gpio_in_config_t config = {
+                    .debounce = On,
+                    .pull_mode = PullMode_Up
+                };
+                pin->config(pin, &config, false);
+            }
             break;
 
         default: break;

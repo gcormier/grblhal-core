@@ -32,15 +32,6 @@ static struct encoders {
 
 static uint8_t n_encoders = 0;
 
-typedef bool (*encoder_enumerate_callback_ptr)(encoder_t *properties, void *data);
-
-static void dummy_event_handler (encoder_t *encoder, encoder_event_t *events)
-{
-    UNUSED(encoder);
-
-    events->value = 0;
-}
-
 void encoder_register (encoder_t *encoder)
 {
     struct encoders *add, *last;

@@ -551,8 +551,14 @@ __attribute__((always_inline)) static inline core_task_t *task_alloc (void)
 static void task_execute (sys_state_t state)
 {
     static uint32_t last_ms = 0;
+    static volatile bool lock = false;
 
     core_task_t *task;
+
+    if(lock)
+        return;
+
+    lock = true;
 
     if(immediate_task && sys.driver_started) {
 
@@ -566,39 +572,41 @@ static void task_execute (sys_state_t state)
     }
 
     uint32_t now = hal.get_elapsed_ticks();
-    if(now == last_ms || next_task == systick_task)
-        return;
+    if(!(now == last_ms || next_task == systick_task)) {
 
-    last_ms = now;
+        last_ms = now;
 
-    if((task = systick_task)) do {
-        task->fn(task->data);
-    } while((task = task->next));
+        if((task = systick_task)) do {
+            task->fn(task->data);
+        } while((task = task->next));
 
-    while((task = next_task) && (int32_t)(task->time - now) <= 0) {
+        while((task = next_task) && (int32_t)(task->time - now) <= 0) {
 
-        hal.irq_disable();
+            hal.irq_disable();
 
-        if(task == next_task)
-            next_task = task->next;
-        else {
-            core_task_t *t;
-            if((t = next_task)) {
-                while(t->next && t->next != task)
-                    t = t->next;
-                if(t->next && t->next == task)
-                    t->next = task->next;
+            if(task == next_task)
+                next_task = task->next;
+            else {
+                core_task_t *t;
+                if((t = next_task)) {
+                    while(t->next && t->next != task)
+                        t = t->next;
+                    if(t->next && t->next == task)
+                        t->next = task->next;
+                }
             }
+
+            hal.irq_enable();
+
+            void *data = task->data;
+            foreground_task_ptr fn = task->fn;
+            task_free(task);
+
+            fn(data);
         }
-
-        hal.irq_enable();
-
-        void *data = task->data;
-        foreground_task_ptr fn = task->fn;
-        task_free(task);
-
-        fn(data);
     }
+
+    lock = false;
 }
 
 ISR_CODE bool ISR_FUNC(task_add_delayed)(foreground_task_ptr fn, void *data, uint32_t delay_ms)

@@ -112,11 +112,16 @@ FLASHMEM bool stream_enumerate_streams (stream_enumerate_callback_ptr callback, 
 }
 
 // called from stream drivers while tx is blocking, returns false to terminate
+// TODO: Restructure st_prep_buffer() calls to be executed here during a long print.
 bool stream_tx_blocking (void)
 {
-    // TODO: Restructure st_prep_buffer() calls to be executed here during a long print.
+    static volatile bool lock = false;
 
-    grbl.on_execute_realtime(state_get());
+    if(!lock) {
+        lock = true;
+        grbl.on_execute_realtime(state_get());
+        lock = false;
+    }
 
     return !(sys.rt_exec_state & EXEC_RESET);
 }

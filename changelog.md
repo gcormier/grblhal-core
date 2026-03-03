@@ -1,10 +1,36 @@
 ## grblHAL changelog
 
+<a name="202600303">Build 20260303
+
+Core:
+
+* Second step in refactoring encoder HAL/API.
+
+* Added some reentry locks.
+
+Drivers:
+
+* iMXRT1062, STM32F4xx, STM32F7xx: updated for the new encoder HAL/API.
+
+Plugins:
+
+* Encoder: updated to use the new encoder HAL/API.
+
+* Motors: fix for `M122` crashing ESP32 controllers. Ref discussion comment [#645](https://github.com/grblHAL/core/discussions/645#discussioncomment-15961675).
+
+* Networking, Wiznet: "hardened" code in an attempt to prevent rare hang.
+
+---
+
 <a name="20260227">Build 20260227
 
 Core:
 
 * Improved handling of `G43` some more - can now be used in the same block as `M6` when the internal workflow for tool change is enabled or `M6` is ignored.
+
+Plugins:
+
+* Encoder: updated to use the new encoder HAL/API.
 
 ---
 
