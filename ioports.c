@@ -400,7 +400,7 @@ FLASHMEM bool ioport_set_function (xbar_t *pin, pin_function_t function, driver_
                 case Port_DigitalIn:
                     if(caps.control)
                         hal.signals_cap.mask |= caps.control->mask;
-                    if(function == Input_Probe || function == Input_Probe2 || function == Input_Toolsetter || xbar_fn_to_signals_mask(function).mask)
+                    if(xbar_is_probe_in(function) || xbar_is_motor_fault_in(function) || xbar_fn_to_signals_mask(function).mask)
                         setting_remove_elements(Settings_IoPort_InvertIn, cfg->bus.mask, false);
                     break;
 
@@ -1443,6 +1443,18 @@ FLASHMEM static bool config_probe_pins (pin_function_t function, gpio_in_config_
     return ok;
 }
 
+FLASHMEM static bool config_fault_pins (pin_function_t function, gpio_in_config_t *config)
+{
+    bool ok;
+
+    if((ok = xbar_is_motor_fault_in(function))) {
+        config->debounce  = Off;
+        config->inverted  = bit_istrue(settings.motor_fault_invert.mask, bit(xbar_fault_pin_to_axis(function)));
+    }
+
+    return ok;
+}
+
 FLASHMEM void ioport_setting_changed (setting_id_t id)
 {
     if(on_setting_changed)
@@ -1452,6 +1464,7 @@ FLASHMEM void ioport_setting_changed (setting_id_t id)
 
         case Setting_InvertProbePin:
         case Setting_ProbePullUpDisable:
+        case Setting_MotorFaultsInvert:
             {
                 xbar_t *xbar;
                 gpio_in_config_t in_config = {0};
@@ -1459,7 +1472,7 @@ FLASHMEM void ioport_setting_changed (setting_id_t id)
 
                 do {
                     if((xbar = hal.port.get_pin_info(Port_Digital, Port_Input, map_reverse(&ports_cfg[Port_DigitalIn], --port)))) {
-                        if(xbar->config && config_probe_pins(xbar->function, &in_config)) {
+                        if(xbar->config && (config_probe_pins(xbar->function, &in_config) || config_fault_pins(xbar->function, &in_config))) {
                             if(in_config.inverted)
                                 settings.ioport.invert_in.mask |= (1 << port);
                             else
@@ -1539,7 +1552,7 @@ FLASHMEM static void ioports_configure (settings_t *settings)
 #endif
             } else { // For probe and control signals higher level config takes priority
                 in_config.inverted = Off;
-                if(!config_probe_pins(xbar->function, &in_config) && xbar->function < Input_Probe) {
+                if(!(config_probe_pins(xbar->function, &in_config) || config_fault_pins(xbar->function, &in_config)) && xbar->function < Input_Probe) {
                     control_signals_t ctrl;
                     if((ctrl = xbar_fn_to_signals_mask(xbar->function)).mask) {
                         in_config.inverted = !!(settings->control_invert.mask & ctrl.mask);

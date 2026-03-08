@@ -182,6 +182,62 @@
 #endif
 #endif // DIRECTION_PORT
 
+#ifdef MOTOR_FAULT_PORT
+
+#if defined(X_MOTOR_FAULT_PIN) && !defined(X_MOTOR_FAULT_PORT)
+#define X_MOTOR_FAULT_PORT MOTOR_FAULT_PORT
+#endif
+#if defined(Y_MOTOR_FAULT_PIN) && !defined(Y_MOTOR_FAULT_PORT)
+#define Y_MOTOR_FAULT_PORT MOTOR_FAULT_PORT
+#endif
+#if defined(Z_MOTOR_FAULT_PIN) && !defined(Z_MOTOR_FAULT_PORT)
+#define Z_MOTOR_FAULT_PORT MOTOR_FAULT_PORT
+#endif
+#if defined(M3_MOTOR_FAULT_PIN) && !defined(M3_MOTOR_FAULT_PORT)
+#define M3_MOTOR_FAULT_PORT MOTOR_FAULT_PORT
+#endif
+#if defined(M4_MOTOR_FAULT_PIN) && !defined(M4_MOTOR_FAULT_PORT)
+#define M4_MOTOR_FAULT_PORT MOTOR_FAULT_PORT
+#endif
+#if defined(M5_MOTOR_FAULT_PIN) && !defined(M5_MOTOR_FAULT_PORT)
+#define M5_MOTOR_FAULT_PORT MOTOR_FAULT_PORT
+#endif
+#if defined(M6_MOTOR_FAULT_PIN) && !defined(M6_MOTOR_FAULT_PORT)
+#define M6_MOTOR_FAULT_PORT MOTOR_FAULT_PORT
+#endif
+#if defined(M7_MOTOR_FAULT_PIN) && !defined(M7_MOTOR_FAULT_PORT)
+#define M7_MOTOR_FAULT_PORT MOTOR_FAULT_PORT
+#endif
+
+#elif defined(ESP_PLATFORM) || defined(RP2040) || defined(__IMXRT1062__)
+
+#if defined(X_MOTOR_FAULT_PIN) && !defined(X_MOTOR_FAULT_PORT)
+#define X_MOTOR_FAULT_PORT NULL
+#endif
+#if defined(Y_MOTOR_FAULT_PIN) && !defined(Y_MOTOR_FAULT_PORT)
+#define Y_MOTOR_FAULT_PORT NULL
+#endif
+#if defined(Z_MOTOR_FAULT_PIN) && !defined(Z_MOTOR_FAULT_PORT)
+#define Z_MOTOR_FAULT_PORT NULL
+#endif
+#if defined(M3_MOTOR_FAULT_PIN) && !defined(M3_MOTOR_FAULT_PORT)
+#define M3_MOTOR_FAULT_PORT NULL
+#endif
+#if defined(M4_MOTOR_FAULT_PIN) && !defined(M4_MOTOR_FAULT_PORT)
+#define M4_MOTOR_FAULT_PORT NULL
+#endif
+#if defined(M5_MOTOR_FAULT_PIN) && !defined(M5_MOTOR_FAULT_PORT)
+#define M5_MOTOR_FAULT_PORT NULL
+#endif
+#if defined(M6_MOTOR_FAULT_PIN) && !defined(M6_MOTOR_FAULT_PORT)
+#define M6_MOTOR_FAULT_PORT NULL
+#endif
+#if defined(M7_MOTOR_FAULT_PIN) && !defined(M7_MOTOR_FAULT_PORT)
+#define M7_MOTOR_FAULT_PORT NULL
+#endif
+
+#endif // MOTOR_FAULT_PORTS
+
 #ifdef SPINDLE_PORT
 #ifndef SPINDLE_ENABLE_PORT
 #define SPINDLE_ENABLE_PORT SPINDLE_PORT

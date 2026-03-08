@@ -1,6 +1,22 @@
 ## grblHAL changelog
 
-<a name="202600303">Build 20260303
+<a name="20260308">Build 20260308
+
+Core:
+
+* Changes to allow I/O expander pins for motor fault inputs. Ref. PR [#920](https://github.com/grblHAL/core/pull/920).
+
+Drivers:
+
+* ESP32: fix for compiler error when analog inputs were enabled.
+
+* RP2040, STM32F4xx and STM32F7xx: updated for core change.
+
+* STM32F1xx: removed some superfluous code, added reentry lock for MPG mode switch.
+
+---
+
+<a name="20260303">Build 20260303
 
 Core:
 

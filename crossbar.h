@@ -51,9 +51,9 @@ typedef enum {
     Input_MotorFaultU,
     Input_MotorFaultV,
     Input_MotorFaultW,
-    Input_MotorFaultX_2,
-    Input_MotorFaultY_2,
-    Input_MotorFaultZ_2,
+    Input_MotorFaultX2,
+    Input_MotorFaultY2,
+    Input_MotorFaultZ2,
     Input_Probe2,
     Input_Probe2Overtravel,
     Input_Toolsetter,
@@ -306,9 +306,9 @@ PROGMEM static const pin_name_t pin_names[] = {
     { .function = Input_MotorFaultX,          .name = "X motor fault" },
     { .function = Input_MotorFaultY,          .name = "Y motor fault" },
     { .function = Input_MotorFaultZ,          .name = "Z motor fault" },
-    { .function = Input_MotorFaultX_2,        .name = "X motor fault 2" },
-    { .function = Input_MotorFaultY_2,        .name = "Y motor fault 2" },
-    { .function = Input_MotorFaultZ_2,        .name = "Z motor fault 2" },
+    { .function = Input_MotorFaultX2,         .name = "X motor fault 2" },
+    { .function = Input_MotorFaultY2,         .name = "Y motor fault 2" },
+    { .function = Input_MotorFaultZ2,         .name = "Z motor fault 2" },
     { .function = Input_Probe2,               .name = "Probe 2" },
     { .function = Input_Probe2Overtravel,     .name = "Probe 2 overtravel" },
     { .function = Input_Toolsetter,           .name = "Toolsetter" },
@@ -804,7 +804,7 @@ typedef union {
 
 static inline uint8_t xbar_fault_pin_to_axis (pin_function_t fn)
 {
-    return fn >= Input_MotorFaultX && fn <= Input_MotorFaultV ? fn - Input_MotorFaultX : (fn >= Input_MotorFaultX_2 && fn <= Input_MotorFaultZ_2 ? fn - Input_MotorFaultX_2 : 0);
+    return fn >= Input_MotorFaultX && fn <= Input_MotorFaultV ? fn - Input_MotorFaultX : (fn >= Input_MotorFaultX2 && fn <= Input_MotorFaultZ2 ? fn - Input_MotorFaultX2 : 0);
 }
 
 static inline stepper_state_t xbar_stepper_state_set (stepper_state_t *state, uint8_t axis, bool b)
@@ -825,6 +825,16 @@ static inline bool xbar_stepper_state_get (stepper_state_t state, uint8_t axis, 
 static inline bool xbar_is_probe_in (pin_function_t fn)
 {
     return fn == Input_Probe || fn == Input_Probe2 || fn == Input_Toolsetter;
+}
+
+static inline bool xbar_is_encoder_in (pin_function_t function)
+{
+    return function == Input_QEI_A || function == Input_QEI_B || function == Input_QEI_Select;
+}
+
+static inline bool xbar_is_motor_fault_in (pin_function_t function)
+{
+    return function >= Input_MotorFaultX && function <= Input_MotorFaultZ2;
 }
 
 #define N_AUX_AIN_MAX (Input_Analog_AuxMax - Input_Analog_Aux0 + 1)

@@ -124,6 +124,7 @@
 #define add_aux_output(fn, aux) { .function = fn, .port = IOPORT_UNASSIGNED, .gpio.port = (void *)aux##_PORT, .gpio.pin = aux##_PIN },
 #endif
 #define add_aux_input_scan(fn, irq, signal_bit) { .function = fn, .irq_mode = irq, .signal.value = signal_bit, .port = IOPORT_UNASSIGNED, .gpio.pin = 0xFF, .scan = On },
+#define add_aux_motor_input(fn, motor, aux, irq) { .function = fn##motor, .irq_mode = irq, .port = IOPORT_UNASSIGNED, .gpio.port = (void *)motor##_##aux##_PORT, .gpio.pin = motor##_##aux##_PIN },
 #define add_aux_input_no_signal(fn, irq) { .function = fn, .irq_mode = irq, .port = IOPORT_UNASSIGNED, .gpio.pin = 0xFE },
 #define add_aux_output_exp(fn, aux) { .function = fn, .port = IOPORT_UNASSIGNED, .gpio.port = (void *)aux##_PORT, .gpio.pin = aux##_PIN },
 
@@ -137,7 +138,7 @@ static aux_ctrl_t aux_ctrl[] = {
   #endif
 #endif
 #if (CONTROL_ENABLE & CONTROL_FEED_HOLD) && defined(FEED_HOLD_PIN)
-    add_aux_input(Input_FeedHold, FEED_HOLD, IRQ_Mode_RisingFalling, SIGNALS_FEEDHOLD_BIT)
+   add_aux_input(Input_FeedHold, FEED_HOLD, IRQ_Mode_RisingFalling, SIGNALS_FEEDHOLD_BIT)
 #endif
 #if (CONTROL_ENABLE & CONTROL_CYCLE_START) && defined(CYCLE_START_PIN)
     add_aux_input(Input_CycleStart, CYCLE_START, IRQ_Mode_RisingFalling, SIGNALS_CYCLESTART_BIT)
@@ -147,7 +148,44 @@ static aux_ctrl_t aux_ctrl[] = {
 #endif
 #if MOTOR_FAULT_ENABLE && defined(MOTOR_FAULT_PIN)
     add_aux_input(Input_MotorFault, MOTOR_FAULT, IRQ_Mode_RisingFalling, SIGNALS_MOTOR_FAULT_BIT)
+#else
+#if defined(X_MOTOR_FAULT_PIN)
+    add_aux_motor_input(Input_MotorFault, X, MOTOR_FAULT, IRQ_Mode_None)
 #endif
+#if defined(Y_MOTOR_FAULT_PIN)
+    add_aux_motor_input(Input_MotorFault, Y, MOTOR_FAULT, IRQ_Mode_None)
+#endif
+#if defined(Z_MOTOR_FAULT_PIN)
+    add_aux_motor_input(Input_MotorFault, Z, MOTOR_FAULT, IRQ_Mode_None)
+#endif
+#if defined(A_MOTOR_FAULT_PIN)
+    add_aux_motor_input(Input_MotorFault, A, MOTOR_FAULT, IRQ_Mode_None)
+#endif
+#if defined(B_MOTOR_FAULT_PIN)
+    add_aux_motor_input(Input_MotorFault, B, MOTOR_FAULT, IRQ_Mode_None)
+#endif
+#if defined(C_MOTOR_FAULT_PIN)
+    add_aux_motor_input(Input_MotorFault, C, MOTOR_FAULT, IRQ_Mode_None)
+#endif
+#if defined(U_MOTOR_FAULT_PIN)
+    add_aux_motor_input(Input_MotorFault, U, MOTOR_FAULT, IRQ_Mode_None)
+#endif
+#if defined(V_MOTOR_FAULT_PIN)
+    add_aux_motor_input(Input_MotorFault, V, MOTOR_FAULT, IRQ_Mode_None)
+#endif
+#if defined(W_MOTOR_FAULT_PIN)
+    add_aux_motor_input(Input_MotorFault, W, MOTOR_FAULT, IRQ_Mode_None)
+#endif
+#if defined(X2_MOTOR_FAULT_PIN)
+    add_aux_motor_input(Input_MotorFault, X2, MOTOR_FAULT, IRQ_Mode_None)
+#endif
+#if defined(Y2_MOTOR_FAULT_PIN)
+    add_aux_motor_input(Input_MotorFault, Y2, MOTOR_FAULT, IRQ_Mode_None)
+#endif
+#if defined(Z2_MOTOR_FAULT_PIN)
+    add_aux_motor_input(Input_MotorFault, Z2, MOTOR_FAULT, IRQ_Mode_None)
+#endif
+#endif // MOTOR_FAULT_ENABLE
 #if MOTOR_WARNING_ENABLE && defined(MOTOR_WARNING_PIN)
     add_aux_input(Input_MotorWarning, MOTOR_WARNING, IRQ_Mode_RisingFalling, SIGNALS_MOTOR_WARNING_BIT)
 #endif
@@ -204,16 +242,6 @@ static aux_ctrl_t aux_ctrl[] = {
 
 
 // General inputs
-
-static inline bool aux_ctrl_is_probe (pin_function_t function)
-{
-    return function == Input_Probe || function == Input_Probe2 || function == Input_Toolsetter;
-}
-
-static inline bool aux_ctrl_is_encoder (pin_function_t function)
-{
-    return function == Input_QEI_A || function == Input_QEI_B || function == Input_QEI_Select;
-}
 
 #ifdef STM32_PLATFORM
 
@@ -290,7 +318,7 @@ static inline void aux_ctrl_irq_enable (settings_t *settings, ioport_interrupt_c
 
     if(idx) do {
         if(aux_ctrl[--idx].port != 0xFF && aux_ctrl[idx].irq_mode != IRQ_Mode_None) {
-            if(!(aux_ctrl_is_probe(aux_ctrl[idx].function) || aux_ctrl_is_encoder(aux_ctrl[idx].function))) {
+            if(!(xbar_is_probe_in(aux_ctrl[idx].function) || xbar_is_encoder_in(aux_ctrl[idx].function))) {
                 pin_irq_mode_t irq_mode;
                 if((irq_mode = aux_ctrl[idx].irq_mode) & IRQ_Mode_RisingFalling)
                     irq_mode = (settings->control_invert.mask & aux_ctrl[idx].signal.mask) ? IRQ_Mode_Falling : IRQ_Mode_Rising;
@@ -316,6 +344,16 @@ static bool __claim_in_port (xbar_t *properties, uint8_t port, void *data)
     return ((aux_ctrl_t *)data)->port != IOPORT_UNASSIGNED;
 }
 
+static bool __find_in_ext (xbar_t *properties, uint8_t port, void *data)
+{
+    bool ok;
+
+    if((ok = properties->pin == ((aux_ctrl_t *)data)->gpio.pin))
+        ((aux_ctrl_t *)data)->port = port;
+
+    return ok;
+}
+
 static bool __find_in_port (xbar_t *properties, uint8_t port, void *data)
 {
     ((aux_ctrl_t *)data)->port = port;
@@ -334,9 +372,11 @@ static inline void aux_ctrl_claim_ports (aux_claim_explicit_ptr aux_claim_explic
 
     if(sizeof(aux_ctrl)) for(idx = 0; idx < sizeof(aux_ctrl) / sizeof(aux_ctrl_t); idx++) {
 
-        if(aux_ctrl[idx].port != IOPORT_UNASSIGNED)
+        if(aux_ctrl[idx].gpio.port == (void *)EXPANDER_PORT) {
+            if(ioports_enumerate(Port_Digital, Port_Input, (pin_cap_t){ .irq_mode = aux_ctrl[idx].irq_mode, .external = On, .claimable = On }, __find_in_ext, &aux_ctrl[idx]))
+                aux_claim_explicit(&aux_ctrl[idx]);         
+        } else if(aux_ctrl[idx].port != IOPORT_UNASSIGNED)
             aux_claim_explicit(&aux_ctrl[idx]);
-
         else {
 
             pin_cap_t cap = { .irq_mode = aux_ctrl[idx].irq_mode, .claimable = On };
@@ -346,7 +386,7 @@ static inline void aux_ctrl_claim_ports (aux_claim_explicit_ptr aux_claim_explic
                 aux_claim_explicit(&aux_ctrl[idx]);
 
 #ifdef STM32_PLATFORM
-            if(aux_ctrl[idx].irq_mode == IRQ_Mode_None && !(aux_ctrl_is_probe(aux_ctrl[idx].function) || aux_ctrl[idx].function == Input_LimitsOverride))
+            if(aux_ctrl[idx].irq_mode == IRQ_Mode_None && !(xbar_is_probe_in(aux_ctrl[idx].function) || aux_ctrl[idx].function == Input_LimitsOverride))
                 continue;
 #endif
             if(aux_ctrl[idx].gpio.pin == 0xFF) {
@@ -598,7 +638,7 @@ static inline void aux_ctrl_claim_out_ports (aux_claim_explicit_out_ptr aux_clai
 
 #if SPINDLE_ENCODER_ENABLE
 #ifndef SPINDLE_PULSE_PIN
-#error "Spindle encoder requires at least SPINDLE_PULSE_PIN defined in the board map!"
+//#error "Spindle encoder requires at least SPINDLE_PULSE_PIN defined in the board map!"
 #endif
 #if !defined(SPINDLE_PULSE_BIT) && defined(SPINDLE_PULSE_PIN)
 #define SPINDLE_PULSE_BIT (1<<SPINDLE_PULSE_PIN)
@@ -780,9 +820,9 @@ static inline void aux_ctrl_claim_out_ports (aux_claim_explicit_out_ptr aux_clai
 
 #ifndef AUXINPUT_MASK
 #define AUXINPUT_MASK (AUXINPUT0_BIT|AUXINPUT1_BIT|AUXINPUT2_BIT|AUXINPUT3_BIT|AUXINPUT4_BIT|AUXINPUT5_BIT|AUXINPUT6_BIT|AUXINPUT7_BIT|\
-                       AUXINPUT8_BIT|AUXINPUT9_BIT|AUXINPUT10_BIT|AUXINPUT11_BIT|AUXINPUT12_BIT|AUXINPUT13_BIT|AUXINPUT4_BIT|AUXINPUT15_BIT)
+                       AUXINPUT8_BIT|AUXINPUT9_BIT|AUXINPUT10_BIT|AUXINPUT11_BIT|AUXINPUT12_BIT|AUXINPUT13_BIT|AUXINPUT14_BIT|AUXINPUT15_BIT)
 #define AUXINPUT_MASK_SUM (AUXINPUT0_BIT+AUXINPUT1_BIT+AUXINPUT2_BIT+AUXINPUT3_BIT+AUXINPUT4_BIT+AUXINPUT5_BIT+AUXINPUT6_BIT+AUXINPUT7_BIT+\
-                           AUXINPUT8_BIT+AUXINPUT9_BIT+AUXINPUT10_BIT+AUXINPUT11_BIT+AUXINPUT12_BIT+AUXINPUT13_BIT+AUXINPUT4_BIT+AUXINPUT15_BIT)
+                           AUXINPUT8_BIT+AUXINPUT9_BIT+AUXINPUT10_BIT+AUXINPUT11_BIT+AUXINPUT12_BIT+AUXINPUT13_BIT+AUXINPUT14_BIT+AUXINPUT15_BIT)
 #endif
 
 /*EOF*/
