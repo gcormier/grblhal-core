@@ -1,10 +1,24 @@
 ## grblHAL changelog
 
+<a name="20260314">Build 20260314
+
+Core:
+
+* Added latency \(in ms\) to `$MODBUSSTATS` output.
+
+Plugins:
+
+* Spindle, all VFDs: "hardened" code against potential hardfault.
+
+* SD card: allow tasks to run during long file listings.
+
+---
+
 <a name="20260312">Build 20260312
 
 Core:
 
-* Added platform specific formatting strings for int32_t, "hardened" task handler code.
+* Added platform specific formatting strings for `int32_t`, "hardened" task handler code.
 
 ---
 
