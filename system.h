@@ -85,6 +85,11 @@ __NOTE:__ flags are mutually exclusive, bit map allows testing for multiple stat
 #define STATE_TOOL_CHANGE   bit(9) //!< Manual tool change, similar to #STATE_HOLD - but stops spindle and allows jogging.
 ///@}
 
+//! \def STATE_HAS_SUBSTATE
+/*! @name Bitmask with system states that may have substate(s).
+*/
+#define STATE_HAS_SUBSTATE (STATE_CYCLE|STATE_HOLD|STATE_ESTOP|STATE_ALARM|STATE_SAFETY_DOOR)
+
 //! \def system_state_t
 /*! @name System state enum values.
 

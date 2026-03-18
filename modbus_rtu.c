@@ -72,7 +72,6 @@ static int8_t stream_instance = -1;
 static uint32_t rx_timeout = 0, silence_until = 0, silence_timeout;
 static modbus_exception_t exception_code = ModBus_NoException;
 static modbus_silence_timeout_t silence;
-static uint32_t latency = 0;
 static queue_entry_t queue[MODBUS_QUEUE_LENGTH];
 static rtu_settings_t modbus;
 static volatile bool spin_lock = false, is_blocking = false, is_up = false;
@@ -81,11 +80,14 @@ static volatile modbus_state_t state = ModBus_Idle;
 static uint8_t dir_port = IOPORT_UNASSIGNED;
 
 static struct {
+    uint32_t rx_count;
     uint32_t tx_count;
     uint32_t retries;
     uint32_t timeouts;
     uint32_t crc_errors;
     uint32_t rx_exceptions;
+    uint32_t latency;
+    bool no_rx;
 } stats = {};
 
 static driver_reset_ptr driver_reset;
@@ -203,7 +205,8 @@ static void modbus_poll (void *data)
                 char *buf = (char *)((queue_entry_t *)packet)->msg.adu;
                 uint16_t rx_len = packet->msg.rx_length; // store original length for CRC check
 
-                latency = max(latency, modbus.rx_timeout - rx_timeout);
+                stats.rx_count++;
+                stats.latency = max(stats.latency, modbus.rx_timeout - rx_timeout);
 
                 do {
                     *buf++ = stream.read();
@@ -240,6 +243,7 @@ static void modbus_poll (void *data)
         case ModBus_TimeoutException:
             if(packet->async)
                 state = ModBus_Silent;
+            stats.no_rx = stream.get_rx_buffer_count() == 0;
             silence_until = hal.get_elapsed_ticks() + silence_timeout;
             break;
 
@@ -288,7 +292,8 @@ static bool modbus_send_rtu (modbus_message_t *msg, const modbus_callbacks_t *ca
                 case ModBus_TimeoutException:
                     if(packet->callbacks.on_rx_timeout)
                         packet->callbacks.on_rx_timeout(ModBus_Timeout, packet->msg.context);
-                    is_blocking = packet->callbacks.retries > 0;
+                    if(!(is_blocking = packet->callbacks.retries > 0))
+                        stats.no_rx = stream.get_rx_buffer_count() == 0;
                     break;
 
                 case ModBus_Exception:
@@ -452,7 +457,7 @@ FLASHMEM static void onReportOptions (bool newopt)
     on_report_options(newopt);
 
     if(!newopt)
-        report_plugin("MODBUS", "0.22");
+        report_plugin("MODBUS", "0.23");
 }
 
 static bool modbus_rtu_isup (void)
@@ -536,13 +541,15 @@ FLASHMEM static status_code_t report_stats (sys_state_t state, char *args)
 {
     char buf[110];
 
-    snprintf(buf, sizeof(buf) - 1, "TX: " UINT32FMT ", retries: " UINT32FMT ", timeouts: " UINT32FMT ", RX exceptions: " UINT32FMT ", CRC errors: " UINT32FMT ", latency: " UINT32FMT,
-              stats.tx_count, stats.retries, stats.timeouts, stats.rx_exceptions, stats.crc_errors, latency);
+    if(stats.no_rx)
+        report_message(stats.rx_count ? "Unstable connection to modbus device?" : "No connection to modbus device?", Message_Warning);
 
+    snprintf(buf, sizeof(buf) - 1, "TX: " UINT32FMT ", retries: " UINT32FMT ", timeouts: " UINT32FMT ", RX exceptions: " UINT32FMT ", CRC errors: " UINT32FMT ", latency: " UINT32FMT,
+              stats.tx_count, stats.retries, stats.timeouts, stats.rx_exceptions, stats.crc_errors, stats.latency);
     report_message(buf, Message_Info);
 
     if(args && (*args == 'r' || *args == 'R'))
-        stats.tx_count = stats.retries = stats.timeouts = stats.rx_exceptions = stats.crc_errors = latency = 0;
+        memset(&stats, 0, sizeof(stats));
 
     return Status_OK;
 }

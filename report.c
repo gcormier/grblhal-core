@@ -1095,6 +1095,11 @@ FLASHMEM void report_build_info (char *line, bool extended)
         if(hal.info) {
             hal.stream.write("[DRIVER:");
             hal.stream.write(hal.info);
+            if(hal.f_mcu) {
+                hal.stream.write("@");
+                hal.stream.write(uitoa(hal.f_mcu));
+                hal.stream.write("MHz");
+            }
             hal.stream.write("]" ASCII_EOL);
         }
 
@@ -2946,7 +2951,7 @@ ISR_CODE void report_add_realtime (report_tracking_t report)
         case Report_CycleStart:
             if(!settings.status_report.pin_state)
                 return;
-            return;
+            break;
 
         default:
             break;

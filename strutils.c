@@ -3,7 +3,7 @@
 
   Part of grblHAL
 
-  Copyright (c) 2019-2024 Terje Io
+  Copyright (c) 2019-2026 Terje Io
 
   grblHAL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -334,4 +334,26 @@ FLASHMEM char *strtointernetdt (struct tm *dt)
     return buf;
 
 #endif
+}
+
+FLASHMEM char *btoa (uint64_t bytes)
+{
+    static char buf[16];
+
+    uint_fast8_t n = 0;
+    uint64_t size = bytes;
+
+    while(size > 1024) {
+        size >>= 10;
+        n++;
+    }
+
+    strcpy(buf, ftoa((float)bytes / (float)(1ULL << 10 * n), n ? 2 : 0));
+
+    if(n == 0) // remove trailing decimal point...
+        buf[strlen(buf) - 1] = '\0';
+
+    strcat(buf, n == 0 ? " B" : n == 1 ? " KB" : n == 2 ? " MB" : " GB");
+
+    return buf;
 }

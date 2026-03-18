@@ -1,5 +1,23 @@
 ## grblHAL changelog
 
+<a name="20260318">Build 20260318
+
+Core:
+
+* Fix for regression.
+
+* Added MCU clock speed, when available, to DRIVER element in `$I` output. Ref. issue [#923](https://github.com/grblHAL/core/issues/923).
+
+* Improved diagnostics provided by `$MODBUSSTATS` when communication has been lost.
+
+Plugins:
+
+* Networking: moved shared string function to core.
+
+* SD card: added file systems mount directory, size and remaining space to `$I` output. Ref. core issue [#923](https://github.com/grblHAL/core/issues/923).
+
+---
+
 <a name="20260314">Build 20260314
 
 Core:

@@ -1,7 +1,7 @@
 /*
   strutils.h - a collection of useful string utilities
 
-Copyright (c) 2019-2022 Terje Io
+Copyright (c) 2019-2026 Terje Io
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -46,5 +46,6 @@ int32_t strlookup (const char *s1, const char *s2, const char delimiter);
 bool strtotime (char *s, struct tm *time);
 char *strtoisodt (struct tm *dt);
 char *strtointernetdt (struct tm *dt);
+char *btoa (uint64_t bytes);
 
 #endif

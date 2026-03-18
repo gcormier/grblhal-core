@@ -201,6 +201,7 @@ ISR_CODE sys_state_t ISR_FUNC(state_get)(void)
     return sys_state;
 }
 
+// NOTE: keep STATE_HAS_SUBSTATE in sync if this code is expanded to cover new states
 uint8_t state_get_substate (void)
 {
     uint8_t substate = 0;
