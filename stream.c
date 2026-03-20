@@ -381,7 +381,7 @@ FLASHMEM static bool stream_select (const io_stream_t *stream, bool add)
     } else if(mpg_enable)
 		task_add_immediate(stream_mpg_set_mode, (void *)1);
 
-    memcpy(&hal.stream, stream, sizeof(io_stream_t));
+    memcpy(&hal.stream, stream, offsetof(io_stream_t, report));
 
     if(stream == usb.stream)
         hal.stream.on_linestate_changed = usb.on_linestate_changed;
@@ -713,7 +713,7 @@ FLASHMEM bool stream_mpg_enable (bool on)
             hal.stream.reset_read_buffer = mpg.stream.reset_read_buffer;
         }
     } else if(org_stream.type != StreamType_Redirected) {
-        memcpy(&hal.stream, &org_stream, sizeof(io_stream_t));
+        memcpy(&hal.stream, &org_stream, offsetof(io_stream_t, report));
         org_stream.type = StreamType_Redirected;
         mpg.stream.report.override_counter = mpg.stream.report.wco_counter = 0;
         if(hal.stream.disable_rx)
@@ -910,7 +910,7 @@ static bool debug_claim_stream (io_stream_properties_t const *stream)
 
 bool debug_stream_init (void)
 {
-    if(stream_enumerate_streams(debug_claim_stream))
+    if(stream_enumerate_streams(debug_claim_stream, NULL))
         hal.debug.write(ASCII_EOL "UART debug active:" ASCII_EOL);
     else
         task_run_on_startup(report_warning, "Failed to initialize debug stream!");

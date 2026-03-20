@@ -1,5 +1,21 @@
 ## grblHAL changelog
 
+<a name="20260320">Build 20260320
+
+Core:
+
+* Minor bug fix, only relevant when debug output to a dedicated UART is enabled.
+
+Drivers:
+
+* ESP32: fix for incorrect UART buffer flush, TX buffer was emptied when only RX buffer was called for.
+
+* iMXRT1062: added tentative support for THCAD2 ADC to some boards.
+> [!NOTE]
+> Only pin 14 can be used and any low pass filter on that input must be removed since THCAD2 outputs a frequency in the range 100KHz - 1MHz depending on the input voltage.
+
+---
+
 <a name="20260318">Build 20260318
 
 Core:
