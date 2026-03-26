@@ -663,10 +663,12 @@ bool vfs_unmount (const char *path)
 vfs_drive_t *vfs_get_drive (const char *path)
 {
     static vfs_drive_t drive;
+    static char mpath[VFS_MOUNT_PATH_LEN];
 
     vfs_mount_t *mount = get_mount(path);
+    strcpy(mpath, mount->path);
     drive.name = mount->vfs->fs_name;
-    drive.path = (const char *)mount->path;
+    drive.path = mpath;
     drive.mode = mount->mode;
     drive.removable = mount->vfs->removable;
     drive.fs = mount->vfs;
@@ -701,13 +703,15 @@ vfs_drives_t *vfs_drives_open (void)
 vfs_drive_t *vfs_drives_read (vfs_drives_t *handle, bool add_hidden)
 {
     static vfs_drive_t drive;
+    static char path[VFS_MOUNT_PATH_LEN];
 
     bool ok;
 
     if((ok = handle->mount != NULL)) {
 
+        strcpy(path, handle->mount->path);
         drive.name = handle->mount->vfs->fs_name;
-        drive.path = (const char *)handle->mount->path;
+        drive.path = path;
         drive.mode = handle->mount->mode;
         drive.removable = handle->mount->vfs->removable;
         drive.fs = handle->mount->vfs;

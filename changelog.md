@@ -1,5 +1,18 @@
 ## grblHAL changelog
 
+<a name="20260326">Build 20260326
+
+Core:
+
+* Improved support for using expander inputs for basic functions. "Hardened" code a bit.
+
+Drivers:
+
+* STM32F4xx: added support for using expander inputs for basic functions, plus some optional pins for spindle encoder input.  
+Spindle encoder bug fix, ref. issue [#149](https://github.com/grblHAL/STM32F4xx/issues/149).
+
+---
+
 <a name="20260324">20260324
 
 Core:

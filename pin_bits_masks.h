@@ -580,8 +580,8 @@ static inline void aux_ctrl_claim_out_ports (aux_claim_explicit_out_ptr aux_clai
         if(aux_ctrl_out[idx].gpio.port == (void *)EXPANDER_PORT) {
             if(ioports_enumerate(Port_Digital, Port_Output, (pin_cap_t){ .external = On, .claimable = On }, aux_claim, &aux_ctrl_out[idx])) {
                 if((aux_ctrl_out[idx].output = ioport_claim(Port_Digital, Port_Output, &aux_ctrl_out[idx].port, NULL))) {
-                    ioport_set_function((xbar_t *)aux_ctrl_out[idx].output, aux_ctrl_out[idx].function, NULL);
-                    aux_claim_explicit(&aux_ctrl_out[idx]);
+                    if(ioport_set_function((xbar_t *)aux_ctrl_out[idx].output, aux_ctrl_out[idx].function, NULL))
+                        aux_claim_explicit(&aux_ctrl_out[idx]);
                 }
             }
         } else

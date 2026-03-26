@@ -403,6 +403,7 @@ FLASHMEM bool ioport_set_function (xbar_t *pin, pin_function_t function, driver_
     if(io_port) do {
         if(io_port->ports_id == pin->ports_id && (ok = pin->set_function && pin->set_function(pin, function))) {
 
+            pin->function = function;
             cfg->bus.mask &= ~(1 << (pin->id + io_port->ports_id->cfg[pin->mode.output].n_start));
             cfg->count = cfg->free = -1;
 

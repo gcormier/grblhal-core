@@ -395,7 +395,7 @@ FLASHMEM static bool homing_cycle (axes_signals_t cycle, axes_signals_t auto_squ
             if (mode != HomingMode_Pulloff) {
 
                 // Check homing switches state. Lock out cycle axes when they change.
-                homing_state = homing_signals_select(signals_state = hal.homing.get_state(), auto_square, squaring_mode);
+                homing_state = homing_signals_select((signals_state = hal.homing.get_state()), auto_square, squaring_mode);
 
                 // Auto squaring check
                 if((homing_state.mask & auto_square.mask) && squaring_mode == SquaringMode_Both) {

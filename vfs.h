@@ -33,6 +33,8 @@
 #include <string.h>
 #include <time.h>
 
+#define VFS_MOUNT_PATH_LEN 33
+
 #define vfs_load_plugin(x)
 
 #ifndef bcopy
@@ -175,7 +177,7 @@ typedef struct {
 
 typedef struct vfs_mount
 {
-    char path[64];
+    char path[VFS_MOUNT_PATH_LEN];
     const vfs_t *vfs;
     vfs_st_mode_t mode;
 #ifdef ESP_PLATFORM // some versions of ESP-IDF/Compiler combos are fcked up
@@ -198,7 +200,7 @@ typedef struct {
 
 typedef struct {
     const char *name;
-    const char *path;
+    char *path;
     bool removable;
     vfs_st_mode_t mode;
     const void *fs;
