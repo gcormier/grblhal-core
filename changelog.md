@@ -1,5 +1,17 @@
 ## grblHAL changelog
 
+<a name="20260709">Build 20260709
+
+Core:
+
+* Added support for MPG real time command character stream switching for RX only streams.
+
+Drivers:
+
+* RP2040: added support for optional third PIO based UART port. Added tentative map for Bolangsk board.
+
+---
+
 <a name="20260626">20260626
 
 Core:
