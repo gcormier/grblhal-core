@@ -278,6 +278,9 @@ FLASHMEM status_code_t modbus_message (uint8_t server, modbus_function_t functio
         cmd.rx_length = 5;
     } else {
 
+        if(registers > MODBUS_MAX_REGISTERS) // reject requests too large for adu[]
+            return Status_InvalidStatement;
+
         cmd.tx_length = 6 + 2 * registers;
         cmd.rx_length = cmd.tx_length - 1;
 
@@ -290,6 +293,8 @@ FLASHMEM status_code_t modbus_message (uint8_t server, modbus_function_t functio
                 }
             } else {
                 cmd.tx_length += 3; cmd.rx_length = 8;
+                if(cmd.tx_length > MODBUS_MAX_ADU_SIZE || cmd.rx_length > MODBUS_MAX_ADU_SIZE)
+                    return Status_InvalidStatement; // frame will not fit adu[]
                 cmd.adu[4] = (uint8_t)(registers >> 8);
                 cmd.adu[5] = (uint8_t)(registers & 0xFF);
                 cmd.adu[6] = (uint8_t)(registers << 1);
