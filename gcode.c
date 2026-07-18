@@ -132,6 +132,7 @@ DCRAM parser_state_t gc_state;
 m98_macro_t *m98_macros = NULL;
 static tool_data_t *pending_tool = NULL;
 static output_command_t *output_commands = NULL; // Linked list
+static settings_changed_ptr settings_changed = NULL;
 static scale_factor_t scale_factor = {
     .ijk[X_AXIS] = 1.0f,
     .ijk[Y_AXIS] = 1.0f,
@@ -747,6 +748,14 @@ static status_code_t gc_at_exit (status_code_t status)
     return status;
 }
 
+static void onSettingsChanged (settings_t *settings, settings_changed_flags_t changed)
+{
+    if(changed.spindle || changed.restore_defaults)
+        gc_spindle_off();
+
+    settings_changed(settings, changed);
+}
+
 FLASHMEM void gc_init (bool stop)
 {
 #if COMPATIBILITY_LEVEL > 1
@@ -787,6 +796,11 @@ FLASHMEM void gc_init (bool stop)
         }
     }
 #endif
+
+    if(settings_changed == NULL) {
+        settings_changed = grbl.on_settings_changed;
+        grbl.on_settings_changed = onSettingsChanged;
+    }
 
     // Clear any pending output commands etc...
     gc_at_exit(Status_UserException);
@@ -870,6 +884,7 @@ FLASHMEM void gc_spindle_off (void)
     spindle_all_off(false);
     report_add_realtime(Report_Spindle);
 }
+
 
 FLASHMEM void gc_coolant (coolant_state_t state)
 {

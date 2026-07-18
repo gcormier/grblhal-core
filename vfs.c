@@ -48,6 +48,9 @@ static inline vfs_mount_t *path_is_mount_dir (const char *path)
 
     size_t mlen;
 
+    if(*(path + plen - 1) == '/')
+        plen--;
+
     if((mount = mount->next)) do {
         mlen = strlen(mount->path) - 1;
         if(mlen == plen && !strncmp(mount->path, path, mlen))
@@ -124,21 +127,10 @@ static char *fs_readdir (vfs_dir_t *dir, vfs_dirent_t *dirent)
 
     vfs_errno = 0;
 
-    if(*mount) {
-        strcpy(dirent->name, (*mount)->path + 1);
-        if(*dirent->name)
-            *(strchr(dirent->name, '\0') - 1) = '\0';
-        dirent->st_mode = (*mount)->mode;
-        dirent->st_mode.directory = true;
-        *mount = NULL;
-    /*    while((*mount = (*mount)->next)) {
-            if(!(*mount)->mode.hidden)
-                break;
-        }*/
-    } else
+
         *dirent->name = '\0';
 
-    return *dirent->name ? dirent->name : NULL;
+    return NULL; //*dirent->name ? dirent->name : NULL;
 }
 
 static void fs_closedir (vfs_dir_t *dir)
@@ -575,20 +567,24 @@ static bool vfs_get_time (struct tm *time)
 {
     memset(time, 0, sizeof(struct tm));
 
- // 2025-01-01:00:00:00
-    time->tm_year = 2025 - 1900;
+ // 2026-01-01:00:00:00
+    time->tm_year = 2026 - 1900;
     time->tm_mday = 1;
 
     return true;
 }
 
-bool vfs_mount (const char *path, const vfs_t *fs, vfs_st_mode_t mode)
+bool vfs_mount (const void *device, const char *path, const vfs_t *fs, vfs_st_mode_t mode)
 {
     vfs_mount_t *mount;
+
+    if((mount = path_is_mount_dir(path)) && mount->vfs != &fs_null)
+        return mount->vfs == fs;
 
     if(!strcmp(path, "/")) {
         root.vfs = fs;
         root.mode = mode;
+        root.device = device;
     } else if((mount = (vfs_mount_t *)calloc(1, sizeof(vfs_mount_t)))) {
 
         struct tm tm;
@@ -600,6 +596,7 @@ bool vfs_mount (const char *path, const vfs_t *fs, vfs_st_mode_t mode)
         mount->vfs = fs;
         mount->mode = mode;
         mount->next = NULL;
+        mount->device = device;
         if(hal.rtc.get_datetime && hal.rtc.get_datetime(&tm)) {
 #ifdef ESP_PLATFORM
             mount->st_mtim = mktime(&tm);
@@ -625,7 +622,7 @@ bool vfs_mount (const char *path, const vfs_t *fs, vfs_st_mode_t mode)
     return fs != NULL;
 }
 
-bool vfs_unmount (const char *path)
+bool vfs_unmount (const void *device, const char *path)
 {
     // TODO: close open files?
 
@@ -746,8 +743,31 @@ vfs_free_t *vfs_drive_getfree (vfs_drive_t *drive)
 int vfs_drive_format (vfs_drive_t *drive)
 {
     const vfs_t *fs = drive->fs;
+    vfs_mount_t *mount = path_is_mount_dir(drive->path);
 
     stream_await_tx_clear(&hal.stream);
 
-    return (vfs_errno = fs->format ? fs->format() : -1);
+    if(mount && fs->format) {
+
+        int errno;
+
+        if(mount == cwdmount)
+            strcpy(cwd, "/");
+
+        if(vfs.on_unmount)
+            vfs.on_unmount(drive->path);
+
+        if((errno = fs->format()) == 0) {
+            if(fs->device_mount && !fs->device_mount(mount->device, true))
+                errno = -1;
+            if(errno == 0 && vfs.on_mount)
+                vfs.on_mount(drive->path, drive->fs, drive->mode);
+        }
+
+        if((vfs_errno = errno) && fs->device_mount)
+            fs->device_mount(mount->device, false); // dismount drive on error
+    } else
+        vfs_errno = -1;
+
+    return vfs_errno;
 }

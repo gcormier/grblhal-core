@@ -1,5 +1,27 @@
 ## grblHAL changelog
 
+<a name="20260718>Build 20260718
+
+Core:
+
+* Changes to VFS API signatures to aid improved handling of file system formatting.
+
+Drivers:
+
+* ESP32, PiBot Ultra board: force stream assignments for modbus and MPG.
+
+* iMXRT1062: fixed typo preventing use of serial port 0 in some configurations.
+
+Plugins:
+
+* SD card, networking, WebUI: updated for VFS API changes, improved formatting of SD card \(FatFs\) and littlefs.
+
+* EEPROM: added support for 1Mbit EEPROMS, improved littlefs EEPROM low-level driver.
+
+* Keypad, display interface: fix for missing probe state report.
+
+---
+
 <a name="20260709">Build 20260709
 
 Core:
