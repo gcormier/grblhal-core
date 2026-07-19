@@ -27,10 +27,6 @@
 #include "hal.h"
 #include "vfs.h"
 
-#ifndef VFS_CWD_LENGTH
-#define VFS_CWD_LENGTH 100
-#endif
-
 #ifdef ARDUINO_SAM_DUE
 #undef feof
 #endif
@@ -115,7 +111,7 @@ static vfs_dir_t *fs_opendir (const char *path)
 
     if(dir) {
         vfs_mount_t **mount = (vfs_mount_t **)&dir->handle;
-        *mount = get_rootfs()->next;
+        *mount = get_rootfs();
     }
 
     return !strcmp(path, "/") ? dir : NULL;
@@ -123,14 +119,30 @@ static vfs_dir_t *fs_opendir (const char *path)
 
 static char *fs_readdir (vfs_dir_t *dir, vfs_dirent_t *dirent)
 {
+/*
     vfs_mount_t **mount = (vfs_mount_t **)&dir->handle;
 
     vfs_errno = 0;
 
-
+    if(*mount) {
+        strcpy(dirent->name, (*mount)->path + 1);
+        if(*dirent->name)
+            *(strchr(dirent->name, '\0') - 1) = '\0';
+        dirent->st_mode = (*mount)->mode;
+        dirent->st_mode.directory = true;
+        *mount = NULL;
+//      while((*mount = (*mount)->next)) {
+//          if(!(*mount)->mode.hidden)
+//              break;
+//      }
+    } else
         *dirent->name = '\0';
 
-    return NULL; //*dirent->name ? dirent->name : NULL;
+    return *dirent->name ? dirent->name : NULL;
+*/
+    *dirent->name = '\0';
+
+    return NULL;
 }
 
 static void fs_closedir (vfs_dir_t *dir)
@@ -200,14 +212,15 @@ static vfs_mount_t root = {
     .next = NULL
 };
 static vfs_mount_t *cwdmount = &root;
-static char cwd[VFS_CWD_LENGTH] = "/";
+static char _cwd[101] = "/";
+static vfs_path_t cwd = { .name = _cwd, .len = sizeof(_cwd) - 1 };
 
 volatile int vfs_errno = 0;
 vfs_events_t vfs = {0};
 
 static vfs_mount_t *get_rootfs (void)
 {
-    return &root;    
+    return &root;
 }
 
 // Strip trailing directory separator, FatFS dont't like it (WinSCP adds it)
@@ -222,39 +235,44 @@ char *vfs_fixpath (char *path)
 
 static const char *parse_path (const char *path)
 {
-    static char *abspath;
-    static size_t maxlen = 0;
+    static vfs_path_t abspath = {0};
 
-    if(strlen(cwd) + strlen(path) + 2 > maxlen) {
-        maxlen = max(VFS_CWD_LENGTH, strlen(cwd) + strlen(path) + 2);
-        abspath = realloc(abspath, maxlen);
+    if(strlen(cwd.name) + strlen(path) + 1 > abspath.len) {
+        abspath.len = max(50, strlen(cwd.name)) + strlen(path) + 1;
+        abspath.name = realloc(abspath.name, abspath.len);
     }
 
-    if(abspath) {
+    if(abspath.name) {
 
-        char newpath[VFS_CWD_LENGTH];
+        char *newpath;
 
-        strcpy(newpath, path);
-        strcpy(abspath, *path == '/' ? "/" : cwd);
+        if((newpath = malloc(strlen(path) + 1))) {
 
-        char *p, *el = strtok(newpath, "/");
+            strcpy(newpath, path);
+            strcpy(abspath.name, *path == '/' ? "/" : cwd.name);
 
-        while(el) {
-            if(!strcmp("..", el)) {
-                if((p = strrchr(abspath, '/')))
-                    *(p + (p == abspath ? 1 : 0)) = '\0';
-            } else if(*el && strcmp(el, ".")) {
-                if(strlen(abspath) == 1)
-                    strcat(abspath, el);
-                else
-                    strcat(strcat(abspath, "/"), el);
+            char *p, *el = strtok(newpath, "/");
+
+            while(el) {
+                if(!strcmp("..", el)) {
+                    if((p = strrchr(abspath.name, '/')))
+                        *(p + (p == abspath.name ? 1 : 0)) = '\0';
+                } else if(*el && strcmp(el, ".")) {
+                    if(strlen(abspath.name) == 1)
+                        strcat(abspath.name, el);
+                    else
+                        strcat(strcat(abspath.name, "/"), el);
+                }
+                el = strtok(NULL, "/");
             }
-            el = strtok(NULL, "/");
-        }
-    } else
-        maxlen = 0;
 
-    return abspath ? (const char *)abspath : path;
+            free(newpath);
+        } else
+            strcpy(abspath.name, path);
+    } else
+        abspath.len = 0;
+
+    return abspath.name ? (const char *)abspath.name : path;
 }
 
 static vfs_mount_t *get_mount (const char *path)
@@ -432,7 +450,23 @@ int vfs_chdir (const char *path)
     }
 
     if(ret == 0) {
-        strcpy(cwd, path);
+        size_t cwdlen;
+        if((cwdlen = strlen(path)) > cwd.len) {
+            if(cwd.name == _cwd)
+                cwd.name = malloc(cwdlen + 1);
+            else
+                cwd.name = realloc(cwd.name, cwdlen + 1);
+            if(cwd.name)
+                cwd.len = cwdlen;
+            else {
+                cwd.name = _cwd;
+                cwd.len = sizeof(_cwd) - 1;
+                mount = &root;
+                path = root.path;
+                ret = -1;
+            }
+        }
+        strcpy(cwd.name, path);
         cwdmount = mount;
     }
 
@@ -488,7 +522,7 @@ vfs_dirent_t *vfs_readdir (vfs_dir_t *dir)
 
         dirent.st_mode = ml->mount->mode;
         dirent.st_mode.directory = true;
-        dir->mounts = dir->mounts->next;
+        dir->mounts = ml->next;
         free(ml);
     }
 
@@ -501,7 +535,7 @@ void vfs_closedir (vfs_dir_t *dir)
 
     while(dir->mounts) {
         vfs_mount_ll_entry_t *ml = dir->mounts;
-        dir->mounts = dir->mounts->next;
+        dir->mounts = ml->next;
         free(ml);
     }
 
@@ -510,7 +544,7 @@ void vfs_closedir (vfs_dir_t *dir)
 
 char *vfs_getcwd (char *buf, size_t len)
 {
-    char *cwds = cwdmount->vfs->fgetcwd ? cwdmount->vfs->fgetcwd(NULL, len) : cwd;
+    char *cwds = cwdmount->vfs->fgetcwd ? cwdmount->vfs->fgetcwd(NULL, len) : cwd.name;
     size_t cwdlen = strlen(cwdmount->path) + strlen(cwds) + 2;
 
     vfs_errno = 0;
@@ -630,7 +664,7 @@ bool vfs_unmount (const void *device, const char *path)
         root.vfs = &fs_null;
         root.mode = (vfs_st_mode_t){ .directory = true, .read_only = true, .hidden = true };
         if(cwdmount == &root)
-            strcpy(cwd, "/");
+            strcpy(cwd.name, "/");
     } else {
 
         vfs_mount_t *mount = get_mount(path);
@@ -638,7 +672,7 @@ bool vfs_unmount (const void *device, const char *path)
 
             if(mount == cwdmount) {
                 cwdmount = &root;
-                strcpy(cwd, "/");
+                strcpy(cwd.name, "/");
             }
 
             vfs_mount_t *pmount = &root;
@@ -752,7 +786,7 @@ int vfs_drive_format (vfs_drive_t *drive)
         int errno;
 
         if(mount == cwdmount)
-            strcpy(cwd, "/");
+            strcpy(cwd.name, "/");
 
         if(vfs.on_unmount)
             vfs.on_unmount(drive->path);

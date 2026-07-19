@@ -255,7 +255,7 @@ FLASHMEM const modbus_function_properties_t *modbus_get_function_properties (mod
 
 FLASHMEM status_code_t modbus_message (uint8_t server, modbus_function_t function, uint16_t address, uint16_t *values, uint8_t registers, modbus_callback_ptr callback)
 {
-    if(function > max_function || !cmds[function].function)
+    if(function > max_function || !cmds[function].function || registers > MODBUS_MAX_REGISTERS)
         return Status_InvalidStatement;
 
     uint_fast8_t idx;
@@ -278,9 +278,6 @@ FLASHMEM status_code_t modbus_message (uint8_t server, modbus_function_t functio
         cmd.rx_length = 5;
     } else {
 
-        if(registers > MODBUS_MAX_REGISTERS) // reject requests too large for adu[]
-            return Status_InvalidStatement;
-
         cmd.tx_length = 6 + 2 * registers;
         cmd.rx_length = cmd.tx_length - 1;
 
@@ -293,8 +290,9 @@ FLASHMEM status_code_t modbus_message (uint8_t server, modbus_function_t functio
                 }
             } else {
                 cmd.tx_length += 3; cmd.rx_length = 8;
-                if(cmd.tx_length > MODBUS_MAX_ADU_SIZE || cmd.rx_length > MODBUS_MAX_ADU_SIZE)
-                    return Status_InvalidStatement; // frame will not fit adu[]
+                if(cmd.tx_length > MODBUS_MAX_ADU_SIZE)
+                    return Status_InvalidStatement;
+
                 cmd.adu[4] = (uint8_t)(registers >> 8);
                 cmd.adu[5] = (uint8_t)(registers & 0xFF);
                 cmd.adu[6] = (uint8_t)(registers << 1);
@@ -308,9 +306,9 @@ FLASHMEM status_code_t modbus_message (uint8_t server, modbus_function_t functio
             cmd.adu[5] = (uint8_t)(registers & 0xFF);
     
             if(function == ModBus_ReadCoils || function == ModBus_ReadDiscreteInputs)
-                cmd.rx_length = 5 + ((registers + 7) / 8);	// bit-packed, ceil(n/8) bytes
+                cmd.rx_length = 5 + ((registers + 7) / 8);  // bit-packed, ceil(n/8) bytes
             else
-                cmd.rx_length = 5 + (registers << 1);      	// 2 bytes per register
+                cmd.rx_length = 5 + (registers << 1);       // 2 bytes per register
         }
     }
 
